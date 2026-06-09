@@ -181,13 +181,16 @@
 						contenteditable={!disabled}
 						class="text-box"
 						placeholder="Test your own input text"
+						data-testid="prompt-input"
+						aria-label="Prompt input"
 						on:focus={onFocusInput}
 						on:input={onInput}
 						on:keydown={handleKeyDown}
 						on:click={(e) => {
 							e.stopPropagation();
 						}}
-						role="input"
+						role="textbox"
+						tabindex="0"
 					>
 						{inputTextTemp}
 					</div>

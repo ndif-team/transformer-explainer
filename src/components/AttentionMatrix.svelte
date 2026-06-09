@@ -321,6 +321,7 @@
 	class="flex items-center gap-8 px-5"
 	style={`--attention-matrix-width: ${attentionMatrixWidth}px;`}
 	data-click="attention-matrix"
+	data-testid={`attention-matrix-${$blockIdx}-${$attentionHeadIdx}`}
 >
 	<!-- QK -->
 	<div

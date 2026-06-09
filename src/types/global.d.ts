@@ -18,6 +18,11 @@ type ModelMetaData = {
 	attention_head_num: number;
 	dimension: number;
 	chunkTotal?: number;
+	d_head?: number;
+	n_kv_heads?: number;
+	vocab_size?: number;
+	positional_kind?: 'absolute' | 'rope';
+	arch_kind?: 'gpt2' | 'llama' | 'other';
 };
 
 type HighlightedToken = {

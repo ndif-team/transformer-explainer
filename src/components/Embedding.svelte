@@ -163,6 +163,9 @@
 	on:click={onClickEmbedding}
 	on:keydown={onClickEmbedding}
 	data-click="embedding-step"
+	data-testid="embedding-step"
+	data-positional-kind={$modelMeta?.positional_kind ?? 'absolute'}
+	data-arch-kind={$modelMeta?.arch_kind ?? 'unknown'}
 >
 	<div
 		class="title expandable"
@@ -236,49 +239,61 @@
 					{/each}
 				</div>
 				<!-- position embedding -->
-				<div class="column symbol embedding-detail">
-					{#each $tokens as token, index}
-						<div class="cell text-lg">+</div>
-					{/each}
-				</div>
-				<div class="column embedding-detail position-embedding">
-					<div class="subtitle flex gap-1">
-						<TextbookTooltip id="positional-encoding">
-							<span>Positional<br />Encoding</span>
-						</TextbookTooltip>
-						<!-- <HelpPopover
-							id="position-embedding"
-							goTo="article-positional-embedding"
-							>{`Converts token positions into \nnumerical representations that \ncapture their order in the sequence.`}</HelpPopover
-						> -->
+				{#if $modelMeta?.positional_kind !== 'rope'}
+					<div class="column symbol embedding-detail">
+						{#each $tokens as token, index}
+							<div class="cell text-lg">+</div>
+						{/each}
 					</div>
-					{#each $tokens as token, index}
-						<div class="cell flex items-center">
-							<div class={`vector ${embeddingVectorColor}`}>
-								<VectorCanvas
-									active
-									colorScale={(d, i) => {
-										return d3
-											.scaleDiverging()
-											.domain([0, 0.5, 1])
-											.range([theme.colors['red'][400], 'white', theme.colors['blue'][400]])(d);
-									}}
-								/>
-							</div>
-							<span class="index-val text-xs">
-								{#if index === 0}
-									<span class="label">position</span><br />
-								{/if}
-								<span class="val">{index}</span>
-							</span>
+					<div
+						class="column embedding-detail position-embedding"
+						data-testid="positional-embed-panel"
+						data-positional-kind="absolute"
+					>
+						<div class="subtitle flex gap-1">
+							<TextbookTooltip id="positional-encoding">
+								<span>Positional<br />Encoding</span>
+							</TextbookTooltip>
 						</div>
-					{/each}
-				</div>
-				<div class="column symbol embedding-detail">
-					{#each $tokens as token, index}
-						<div class="cell">=</div>
-					{/each}
-				</div>
+						{#each $tokens as token, index}
+							<div class="cell flex items-center">
+								<div class={`vector ${embeddingVectorColor}`}>
+									<VectorCanvas
+										active
+										colorScale={(d, i) => {
+											return d3
+												.scaleDiverging()
+												.domain([0, 0.5, 1])
+												.range([theme.colors['red'][400], 'white', theme.colors['blue'][400]])(d);
+										}}
+									/>
+								</div>
+								<span class="index-val text-xs">
+									{#if index === 0}
+										<span class="label">position</span><br />
+									{/if}
+									<span class="val">{index}</span>
+								</span>
+							</div>
+						{/each}
+					</div>
+					<div class="column symbol embedding-detail">
+						{#each $tokens as token, index}
+							<div class="cell">=</div>
+						{/each}
+					</div>
+				{:else}
+					<div
+						class="column embedding-detail position-embedding rope-placeholder flex flex-col items-center justify-center"
+						data-testid="positional-embed-panel"
+						data-positional-kind="rope"
+					>
+						<div class="subtitle text-xs text-gray-500">Position</div>
+						<div class="rope-text mt-2 max-w-[8rem] text-center text-[11px] leading-tight text-gray-500">
+							Rotary positional embedding — applied inside each attention layer.
+						</div>
+					</div>
+				{/if}
 				<Tooltip triggeredBy=".embedding .vector" class="popover" placement="right"
 					>vector({$modelMeta.dimension})</Tooltip
 				>

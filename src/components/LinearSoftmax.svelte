@@ -200,6 +200,8 @@
 	on:click={onClickSoftmax}
 	on:keydown={onClickSoftmax}
 	data-click="prob-step"
+	data-testid="next-token-topk"
+	data-topk-count={data.length}
 >
 	<div
 		class="title expandable"

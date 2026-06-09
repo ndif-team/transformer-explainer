@@ -12,16 +12,17 @@
 		headContentHeight,
 		temperature,
 		modelData,
-		modelSession,
 		isFetchingModel,
 		selectedExampleIdx,
 		isMobile,
 		isOnBlockTransition,
 		blockIdx,
 		isTextbookOpen,
-		userId
+		userId,
+		selectedModel,
+		availableModels,
+		applyServerModels
 	} from '~/store';
-	import { PreTrainedTokenizer } from '@xenova/transformers';
 	import Sankey from '~/components/Sankey.svelte';
 	import Attention from '~/components/Attention.svelte';
 	import SubsequentBlocks from '~/components/SubsequentBlocks.svelte';
@@ -30,134 +31,107 @@
 	import Mlp from '~/components/Mlp.svelte';
 
 	import { onMount } from 'svelte';
+	import { get } from 'svelte/store';
 	import classNames from 'classnames';
-	import { base } from '$app/paths';
-	import * as ort from 'onnxruntime-web';
 
 	import { adjustTemperature, runModel, fakeRunWithCachedData } from '~/utils/data';
-	import { fetchAndMergeChunks } from '~/utils/fetchChunks';
+	import { fetchModels } from '~/utils/api';
 	import WeightPopovers from '~/components/WeightPopovers.svelte';
 	import { fade } from 'svelte/transition';
-	import { AutoTokenizer } from '@xenova/transformers';
 	import { ex0, ex1, ex2, ex3, ex4 } from '~/constants/examples';
 	import BlockTransition from '~/components/BlockTransition.svelte';
 	import QKV from '~/components/QKV.svelte';
 	import Textbook from '~/components/textbook/Textbook.svelte';
 
-	ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.23.0/dist/';
-	ort.env.logLevel = 'error';
-
 	let active = false;
 	let appStartTime = Date.now();
+	let modelsReady = false;
 
-	// fetch model
+	// fetch model list
 	onMount(async () => {
-		const gpt2Tokenizer = await AutoTokenizer.from_pretrained('Xenova/gpt2');
 		active = true;
-
-		const unsubscribe = subscribeInputs(gpt2Tokenizer);
-
-		if (!$isMobile) {
-			await fetchModel();
+		const unsubscribe = subscribeInputs();
+		try {
+			const models = await fetchModels();
+			applyServerModels(models);
+			modelsReady = true;
+			// Prefer GPT-2 (matches existing fixtures + educational anchor); else first available
+			const gpt2 = models.find((m) => m.arch_kind === 'gpt2');
+			const target = gpt2?.name ?? models[0]?.name ?? null;
+			if (target) {
+				if (target !== get(selectedModel)) {
+					selectedModel.set(target);
+				} else {
+					// Same value: subscription won't fire on identity set; kick a run directly.
+					runModel({ input: get(inputText).trim(), temperature: get(temperature), sampling: get(sampling) });
+				}
+			}
+		} catch (err) {
+			console.error('failed to fetch /models', err);
+			modelsReady = false;
+		} finally {
+			isFetchingModel.set(false);
+			const loadTime = Date.now() - appStartTime;
+			window.dataLayer?.push({
+				event: 'model-list-loaded',
+				ok: modelsReady,
+				load_time_ms: loadTime,
+				user_id: $userId
+			});
 		}
-
 		return unsubscribe;
 	});
 
-	// Fetch model onnx
-	const fetchModel = async () => {
-		const chunkNum = 63; //TODO: move to model meta
-		const chunkUrls = Array(chunkNum)
-			.fill(0)
-			.map((d, i) => `${base}/model-v2/gpt2.onnx.part${i}`);
-
-		// Fetch from cache
-		const { hasCache, mergedArray } = await fetchAndMergeChunks(chunkUrls);
-
-		// Create a Blob from the merged array
-		const blob = new Blob([mergedArray], { type: 'application/octet-stream' });
-
-		// Create a URL for the Blob
-		const url = URL.createObjectURL(blob);
-
-		// Create ONNX session using the Blob URL
-		const session = await ort.InferenceSession.create(url, {
-			// logSeverityLevel: 0
-		});
-
-		modelSession.set(session);
-
-		isFetchingModel.set(false);
-
-		const loadTime = Date.now() - appStartTime;
-		window.dataLayer?.push({
-			event: `model-loaded`,
-			use_cache: hasCache,
-			load_time_ms: loadTime,
-			user_id: $userId
-		});
-	};
-
 	// Subscribe inputs
 	const cachedDataMap = [ex0, ex1, ex2, ex3, ex4];
-	const subscribeInputs = (tokenizer: PreTrainedTokenizer) => {
+	const subscribeInputs = () => {
 		const runModelOrCache = () => {
-			if ($isFetchingModel || !$modelSession) {
+			if (!modelsReady || !$selectedModel || $availableModels.length === 0) {
 				const cachedData = cachedDataMap[$selectedExampleIdx];
-
 				fakeRunWithCachedData({
 					cachedData,
-					tokenizer,
 					temperature: $temperature,
 					sampling: $sampling
 				});
 				return;
 			}
-			// run model when input has changed
 			runModel({
-				tokenizer,
 				input: $inputText.trim(),
 				temperature: $temperature,
 				sampling: $sampling
 			});
 		};
 
-		const unsubscribeInputText = inputText.subscribe((value) => {
-			runModelOrCache();
-		});
+		const unsubscribeInputText = inputText.subscribe(() => runModelOrCache());
 
-		let initialTemperature = true; // prevent initial redundant rendering
+		let initialTemperature = true;
 		const unsubscribeTemperature = temperature.subscribe((value) => {
 			if (initialTemperature) {
 				initialTemperature = false;
 				return;
 			}
-			adjustTemperature({
-				tokenizer,
-				logits: $modelData.logits,
-				temperature: value,
-				sampling: $sampling
-			});
+			adjustTemperature({ temperature: value, sampling: $sampling });
 		});
 
-		let initialSampling = true; // prevent initial redundant rendering
+		let initialSampling = true;
 		const unsubscribeSmapling = sampling.subscribe((value) => {
 			if (initialSampling) {
 				initialSampling = false;
 				return;
 			}
-			adjustTemperature({
-				tokenizer,
-				logits: $modelData.logits,
-				temperature: $temperature,
-				sampling: value
-			});
+			adjustTemperature({ temperature: $temperature, sampling: value });
+		});
+
+		// Re-run when the selected model changes
+		const unsubscribeSelectedModel = selectedModel.subscribe(() => {
+			if (modelsReady) runModelOrCache();
 		});
 
 		return () => {
 			unsubscribeInputText();
 			unsubscribeTemperature();
 			unsubscribeSmapling();
+			unsubscribeSelectedModel();
 		};
 	};
 
@@ -205,7 +179,7 @@
 	<div class="nodes resize-watch">
 		<div class="steps" class:expanded={!!$expandedBlock.id} bind:offsetHeight={vizHeight}>
 			<Embedding className="step" />
-			<div class="blocks relative">
+			<div class="blocks relative" data-testid="block-strip" data-block-idx={$blockIdx}>
 				<div class="block-steps main" class:initial={$blockIdx === 0}>
 					<QKV className="step" />
 					<Attention className="step" />

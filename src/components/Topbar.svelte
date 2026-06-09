@@ -3,6 +3,7 @@
 	import { fade } from 'svelte/transition';
 	import { page } from '$app/stores';
 	import InputForm from '~/components/InputForm.svelte';
+	import ModelSelector from '~/components/ModelSelector.svelte';
 	import { ga } from '~/utils/event';
 	import Sampling from '~/components/Sampling.svelte';
 
@@ -16,12 +17,15 @@
 	<div class="logo text-bold text-gray-700" data-click="logo">
 		T<span class="small">RANSFORMER</span> E<span class="small">XPLAINER</span>
 	</div>
-	<div class="inputs flex grow items-center">
+	<div class="inputs flex grow items-center gap-3">
 		<div class="input-wrapper w-full" class:active={isActive}>
 			{#if !isAboutPage}
 				<InputForm />
 			{/if}
 		</div>
+		{#if !isAboutPage}
+			<ModelSelector />
+		{/if}
 	</div>
 	<div class="icons flex items-center gap-3">
 		<!-- arxiv -->

@@ -1,9 +1,9 @@
-import { writable, derived, readable } from 'svelte/store';
-import * as ort from 'onnxruntime-web';
+import { writable, derived, readable, get } from 'svelte/store';
 import tailwindConfig from '../../tailwind.config';
 import resolveConfig from 'tailwindcss/resolveConfig';
 import { ex0 } from '~/constants/examples';
 import { textPages } from '~/utils/textbookPages';
+import type { ServerModelMetadata } from '~/types/forwardPass';
 
 const { theme } = resolveConfig(tailwindConfig);
 
@@ -38,19 +38,22 @@ export const inputTextExample = [
 const initialExIdx = 0;
 export const selectedExampleIdx = writable<number>(initialExIdx);
 
-export const modelSession = writable<ort.InferenceSession>();
-
 // transformer model output
 export const modelData = writable<ModelData>(ex0);
 export const predictedToken = writable<Probability>();
 export const tokens = writable<string[]>(ex0?.tokens);
 export const tokenIds = writable<number[]>(ex0?.tokenIds);
 
-export const modelMetaMap: Record<string, ModelMetaData> = {
-	gpt2: { layer_num: 12, attention_head_num: 12, dimension: 768, chunkTotal: 63 },
-	'gpt2-medium': { layer_num: 24, attention_head_num: 16, dimension: 1024 },
-	'gpt2-large': { layer_num: 36, attention_head_num: 20, dimension: 1280 }
-};
+// Server-supplied list of NDIF-hosted models, fetched on app start.
+export const availableModels = writable<ServerModelMetadata[]>([]);
+
+// Lookup of arch metadata by model name. Always seeded with GPT-2 defaults so
+// the cached example fixtures render correctly before /models resolves; the
+// fetchModels() bootstrap step replaces this with real server data.
+export const modelMetaMap = writable<Record<string, ModelMetaData>>({
+	gpt2: { layer_num: 12, attention_head_num: 12, dimension: 768 },
+	'openai-community/gpt2': { layer_num: 12, attention_head_num: 12, dimension: 768 }
+});
 
 // selected token vector
 export const highlightedToken = writable<HighlightedToken>({
@@ -75,8 +78,30 @@ export const inputText = writable(inputTextExample[initialExIdx]);
 
 // selected model and meta data
 const initialSelectedModel = 'gpt2';
-export const selectedModel = writable(initialSelectedModel);
-export const modelMeta = derived(selectedModel, ($selectedModel) => modelMetaMap[$selectedModel]);
+export const selectedModel = writable<string>(initialSelectedModel);
+export const modelMeta = derived(
+	[selectedModel, modelMetaMap],
+	([$selectedModel, $modelMetaMap]) => $modelMetaMap[$selectedModel] ?? $modelMetaMap['gpt2']
+);
+
+/** Hydrate modelMetaMap from a server model list. */
+export function applyServerModels(models: ServerModelMetadata[]) {
+	availableModels.set(models);
+	const next: Record<string, ModelMetaData> = { ...get(modelMetaMap) };
+	for (const m of models) {
+		next[m.name] = {
+			layer_num: m.n_layers,
+			attention_head_num: m.n_heads,
+			dimension: m.d_model,
+			d_head: m.d_head,
+			n_kv_heads: m.n_kv_heads,
+			vocab_size: m.vocab_size,
+			positional_kind: m.positional_kind,
+			arch_kind: m.arch_kind
+		};
+	}
+	modelMetaMap.set(next);
+}
 
 // Temperature setting
 export const initialTemperature = 0.8;
