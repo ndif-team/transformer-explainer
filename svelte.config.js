@@ -27,7 +27,17 @@ const config = {
 			'~': './src'
 		},
 		paths: {
-			base: process.env.NODE_ENV === 'production' ? '/transformer-explainer' : ''
+			// BASE_PATH is the source of truth for the deploy prefix; set
+			// explicitly by the workbench Dockerfile when bundling the SPA
+			// under /transformer-explainer/. Falls back to the upstream
+			// gh-pages default for standalone production deploys, and to ''
+			// when neither is set (local dev).
+			base:
+				process.env.BASE_PATH !== undefined
+					? process.env.BASE_PATH
+					: process.env.NODE_ENV === 'production'
+						? '/transformer-explainer'
+						: ''
 		}
 	}
 };
