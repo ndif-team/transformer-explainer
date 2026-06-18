@@ -1,13 +1,10 @@
 <script lang="ts">
-	import {
-		availableModels,
-		selectedModel,
-		isModelRunning,
-		modelMeta
-	} from '~/store';
+	import { availableModels, selectedModel, isModelRunning, modelMeta } from '~/store';
 	import classNames from 'classnames';
+	import { onMount } from 'svelte';
 
 	let open = false;
+	let rootEl: HTMLDivElement;
 
 	$: archBadge = $modelMeta?.arch_kind ?? 'unknown';
 
@@ -15,9 +12,29 @@
 		selectedModel.set(name);
 		open = false;
 	};
+
+	const handleDocClick = (e: MouseEvent) => {
+		if (!open) return;
+		if (rootEl && e.target instanceof Node && !rootEl.contains(e.target)) {
+			open = false;
+		}
+	};
+
+	const handleEsc = (e: KeyboardEvent) => {
+		if (e.key === 'Escape') open = false;
+	};
+
+	onMount(() => {
+		document.addEventListener('click', handleDocClick);
+		document.addEventListener('keydown', handleEsc);
+		return () => {
+			document.removeEventListener('click', handleDocClick);
+			document.removeEventListener('keydown', handleEsc);
+		};
+	});
 </script>
 
-<div class="model-selector relative" data-testid="model-selector">
+<div class="model-selector relative" bind:this={rootEl} data-testid="model-selector">
 	<button
 		type="button"
 		class={classNames(
@@ -25,7 +42,7 @@
 			$isModelRunning && 'cursor-not-allowed opacity-60'
 		)}
 		disabled={$isModelRunning}
-		on:click={() => (open = !open)}
+		on:click|stopPropagation={() => (open = !open)}
 		data-testid="model-selector-button"
 	>
 		<span class="font-mono text-gray-700" data-testid="model-selector-current">
@@ -42,19 +59,14 @@
 		>
 			{archBadge}
 		</span>
-		<svg
-			class="h-3 w-3 text-gray-500"
-			fill="currentColor"
-			viewBox="0 0 20 20"
-			aria-hidden="true"
-		>
+		<svg class="h-3 w-3 text-gray-500" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
 			<path d="M5 8l5 5 5-5H5z" />
 		</svg>
 	</button>
 
 	{#if open && $availableModels.length > 0}
 		<ul
-			class="absolute right-0 z-50 mt-1 max-h-80 w-64 overflow-auto rounded border border-gray-200 bg-white py-1 text-sm shadow-md"
+			class="model-selector-list absolute right-0 mt-1 max-h-80 w-64 overflow-auto rounded border border-gray-200 bg-white py-1 text-sm shadow-md"
 			role="listbox"
 			data-testid="model-selector-list"
 		>
@@ -68,7 +80,7 @@
 							model.allowed === false && 'cursor-not-allowed opacity-50'
 						)}
 						disabled={model.allowed === false}
-						on:click={() => onPick(model.name)}
+						on:click|stopPropagation={() => onPick(model.name)}
 						data-testid={`model-selector-option-${model.arch_kind}`}
 					>
 						<span class="font-mono text-xs text-gray-700">{model.name}</span>
@@ -90,5 +102,11 @@
 <style lang="scss">
 	.model-selector {
 		flex-shrink: 0;
+	}
+	.model-selector-list {
+		// Sit above the textbook / sankey / popover layers, which use z-indices
+		// up to 1000 (see src/styles/variables.scss). Tailwind's z-50 is far too
+		// low — the dropdown was opening, but every scene layer covered it.
+		z-index: 1500;
 	}
 </style>
