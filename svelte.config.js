@@ -37,7 +37,13 @@ const config = {
 					? process.env.BASE_PATH
 					: process.env.NODE_ENV === 'production'
 						? '/transformer-explainer'
-						: ''
+						: '',
+			// Force absolute URLs (with base prefix) in the prerendered HTML.
+			// Relative URLs require a trailing slash on the document URL, and
+			// when this SPA is served behind a host that normalizes trailing
+			// slashes (e.g. Next.js with `trailingSlash: false`), the redirect
+			// dance produces a loop. Absolute URLs sidestep this entirely.
+			relative: false
 		}
 	}
 };
