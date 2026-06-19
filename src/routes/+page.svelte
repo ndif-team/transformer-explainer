@@ -54,24 +54,49 @@
 		try {
 			const models = await fetchModels();
 			applyServerModels(models);
-			modelsReady = true;
-			// Prefer GPT-J 6B on NDIF when available (fast + reliable on remote NDIF
-			// for the live preview); fall back to any GPT-2 (matches the existing
-			// fixtures + the educational anchor for local-only runs); else first
-			// available.
-			const gptj = models.find(
-				(m) => m.arch_kind === 'gptj' && m.allowed !== false
-			);
-			const gpt2 = models.find((m) => m.arch_kind === 'gpt2' && m.allowed !== false);
-			const firstAllowed = models.find((m) => m.allowed !== false);
-			const target = gptj?.name ?? gpt2?.name ?? firstAllowed?.name ?? models[0]?.name ?? null;
-			if (target) {
-				if (target !== get(selectedModel)) {
-					selectedModel.set(target);
-				} else {
-					// Same value: subscription won't fire on identity set; kick a run directly.
-					runModel({ input: get(inputText).trim(), temperature: get(temperature), sampling: get(sampling) });
+
+			// Pick the page-load default by probing models at runtime instead of
+			// hardcoding an arch preference. Listed-as-HOT in /models doesn't
+			// guarantee a successful trace right now: NDIF allowlists drift, models
+			// get unscheduled, key scopes change. Iterate candidates smallest-first
+			// (so the page lands quickly when a small model works), and the first
+			// one whose forward pass completes becomes the default. Larger models
+			// are still picked if the smaller ones are unavailable.
+			const candidates = models
+				.filter((m) => m.allowed !== false)
+				.sort((a, b) => {
+					const sizeA = (a.n_layers || 0) * (a.d_model || 0) || Number.MAX_SAFE_INTEGER;
+					const sizeB = (b.n_layers || 0) * (b.d_model || 0) || Number.MAX_SAFE_INTEGER;
+					return sizeA - sizeB || a.name.localeCompare(b.name);
+				});
+
+			let picked: string | null = null;
+			for (const m of candidates) {
+				// runModel reads selectedModel via get(...) at call time, so we set
+				// the store first. The subscription is gated on modelsReady, which
+				// is still false here, so we don't double-fire while probing.
+				selectedModel.set(m.name);
+				try {
+					console.info('[bootstrap] probing model:', m.name);
+					await runModel({
+						input: get(inputText).trim(),
+						temperature: get(temperature),
+						sampling: get(sampling)
+					});
+					picked = m.name;
+					console.info('[bootstrap] picked model:', m.name);
+					break;
+				} catch (e) {
+					console.warn(
+						`[bootstrap] ${m.name} unavailable, trying next:`,
+						(e as Error).message ?? e
+					);
 				}
+			}
+
+			modelsReady = picked !== null;
+			if (!picked) {
+				console.error('[bootstrap] no model in /models could complete a forward pass');
 			}
 		} catch (err) {
 			console.error('failed to fetch /models', err);
