@@ -9,6 +9,26 @@ const HEADERS = {
 	'X-User-Email': USER_EMAIL
 };
 
+// Diagnostic surface: expose the configured backend URL so it's trivial to
+// confirm what the production bundle is talking to without leaving the
+// browser. If you're seeing the localhost fallback on a deployed instance,
+// VITE_WORKBENCH_API wasn't set at build time — check the te-builder ARG
+// wiring in workbench/_web/Dockerfile and the preview-deploy build-args.
+if (typeof window !== 'undefined') {
+	const isInsecureOnSecurePage =
+		BASE.startsWith('http://localhost') && window.location.protocol === 'https:';
+	if (isInsecureOnSecurePage) {
+		console.warn(
+			'[transformer-explainer] VITE_WORKBENCH_API fell back to the localhost default while running under HTTPS. ' +
+				'The /models and /forward_pass requests will be blocked as mixed content. ' +
+				'Build-time fix: set VITE_WORKBENCH_API to the workbench API host.'
+		);
+	} else {
+		console.info('[transformer-explainer] API base:', BASE);
+	}
+	(window as Window & { __TE_API_BASE__?: string }).__TE_API_BASE__ = BASE;
+}
+
 /** Latest NDIF job status, exposed as a store for the loading UI. */
 export const jobStatus = writable<string>('idle');
 
