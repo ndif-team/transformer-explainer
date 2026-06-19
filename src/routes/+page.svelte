@@ -55,9 +55,16 @@
 			const models = await fetchModels();
 			applyServerModels(models);
 			modelsReady = true;
-			// Prefer GPT-2 (matches existing fixtures + educational anchor); else first available
-			const gpt2 = models.find((m) => m.arch_kind === 'gpt2');
-			const target = gpt2?.name ?? models[0]?.name ?? null;
+			// Prefer GPT-J 6B on NDIF when available (fast + reliable on remote NDIF
+			// for the live preview); fall back to any GPT-2 (matches the existing
+			// fixtures + the educational anchor for local-only runs); else first
+			// available.
+			const gptj = models.find(
+				(m) => m.arch_kind === 'gptj' && m.allowed !== false
+			);
+			const gpt2 = models.find((m) => m.arch_kind === 'gpt2' && m.allowed !== false);
+			const firstAllowed = models.find((m) => m.allowed !== false);
+			const target = gptj?.name ?? gpt2?.name ?? firstAllowed?.name ?? models[0]?.name ?? null;
 			if (target) {
 				if (target !== get(selectedModel)) {
 					selectedModel.set(target);

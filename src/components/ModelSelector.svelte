@@ -52,6 +52,7 @@
 			class={classNames(
 				'rounded px-1 text-[10px] uppercase tracking-wide',
 				archBadge === 'gpt2' && 'bg-blue-100 text-blue-700',
+				archBadge === 'gptj' && 'bg-purple-100 text-purple-700',
 				archBadge === 'llama' && 'bg-orange-100 text-orange-700',
 				archBadge === 'other' && 'bg-gray-100 text-gray-700'
 			)}
@@ -88,6 +89,7 @@
 							class={classNames(
 								'rounded px-1 text-[10px] uppercase tracking-wide',
 								model.arch_kind === 'gpt2' && 'bg-blue-100 text-blue-700',
+								model.arch_kind === 'gptj' && 'bg-purple-100 text-purple-700',
 								model.arch_kind === 'llama' && 'bg-orange-100 text-orange-700',
 								model.arch_kind === 'other' && 'bg-gray-100 text-gray-700'
 							)}>{model.arch_kind}</span

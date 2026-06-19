@@ -1,7 +1,7 @@
 // Types mirroring nnsightful.types.ForwardPassData and friends.
 // Source of truth: /home/researcher/nnsightful/src/nnsightful/types.py
 
-export type ArchKind = 'gpt2' | 'llama';
+export type ArchKind = 'gpt2' | 'llama' | 'gptj';
 export type PositionalKind = 'absolute' | 'rope';
 export type ArchKindClient = ArchKind | 'other';
 
