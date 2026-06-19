@@ -43,7 +43,12 @@ const POLL_INTERVAL_MS = 1000;
 const POLL_TIMEOUT_MS = 120_000;
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
-	const res = await fetch(url, { credentials: 'omit', ...init });
+	// Send cookies cross-origin so the workbench API host's oauth2_proxy
+	// sees the session cookie set on the parent .ndif-preview.ripley.cloud
+	// domain. Without this, the proxy 302s to the auth flow and the browser
+	// refuses to follow that redirect across origins (CORS access-control
+	// failure). Locally, this is a no-op — there's no cookie to send.
+	const res = await fetch(url, { credentials: 'include', ...init });
 	if (!res.ok) {
 		let detail = '';
 		try {
