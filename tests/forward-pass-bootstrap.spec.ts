@@ -14,7 +14,10 @@ test.describe('forward_pass page-load happy path', () => {
 	test('runtime probe lands on a working model and the page renders it', async ({
 		explainerPage: page
 	}) => {
-		test.setTimeout(REAL_NDIF_TIMEOUT_MS * 2);
+		// The page-load probe retries each candidate a few times on transient
+		// NDIF errors, so the bootstrap can take longer than a single
+		// REAL_NDIF_TIMEOUT_MS budget when NDIF is degraded. Allow 5×.
+		test.setTimeout(REAL_NDIF_TIMEOUT_MS * 5);
 
 		await page.goto('/');
 		await waitForBootstrap(page);

@@ -70,27 +70,50 @@
 					return sizeA - sizeB || a.name.localeCompare(b.name);
 				});
 
+			// NDIF transient errors (e.g. the per-worker "is not whitelisted"
+			// race) can fire on a candidate that's actually healthy. Retry
+			// each candidate a few times before advancing — saves us from
+			// dead-ending on a single unlucky pass through all candidates.
+			const TRANSIENT_PATTERNS = [/is not whitelisted/i];
+			const isTransient = (msg: string | undefined) =>
+				!!msg && TRANSIENT_PATTERNS.some((p) => p.test(msg));
+			const MAX_ATTEMPTS_PER_CANDIDATE = 3;
+
 			let picked: string | null = null;
 			for (const m of candidates) {
 				// runModel reads selectedModel via get(...) at call time, so we set
 				// the store first. The subscription is gated on modelsReady, which
 				// is still false here, so we don't double-fire while probing.
 				selectedModel.set(m.name);
-				try {
-					console.info('[bootstrap] probing model:', m.name);
-					await runModel({
-						input: get(inputText).trim(),
-						temperature: get(temperature),
-						sampling: get(sampling)
-					});
+				let succeeded = false;
+				for (let attempt = 1; attempt <= MAX_ATTEMPTS_PER_CANDIDATE; attempt++) {
+					try {
+						console.info(
+							`[bootstrap] probing model: ${m.name} (attempt ${attempt}/${MAX_ATTEMPTS_PER_CANDIDATE})`
+						);
+						await runModel({
+							input: get(inputText).trim(),
+							temperature: get(temperature),
+							sampling: get(sampling)
+						});
+						succeeded = true;
+						break;
+					} catch (e) {
+						const msg = (e as Error).message ?? String(e);
+						if (!isTransient(msg) || attempt === MAX_ATTEMPTS_PER_CANDIDATE) {
+							console.warn(`[bootstrap] ${m.name} unavailable, trying next:`, msg);
+							break;
+						}
+						console.warn(
+							`[bootstrap] ${m.name} transient error (retry ${attempt}/${MAX_ATTEMPTS_PER_CANDIDATE}):`,
+							msg
+						);
+					}
+				}
+				if (succeeded) {
 					picked = m.name;
 					console.info('[bootstrap] picked model:', m.name);
 					break;
-				} catch (e) {
-					console.warn(
-						`[bootstrap] ${m.name} unavailable, trying next:`,
-						(e as Error).message ?? e
-					);
 				}
 			}
 

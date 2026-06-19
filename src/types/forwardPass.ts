@@ -32,9 +32,11 @@ export interface TopKLogits {
 }
 
 export interface AttentionPayload {
-	scores: number[][][]; // [head][q][k]
-	scores_masked: number[][][];
-	probs: number[][][];
+	// Shape: [head][q][k]. Raw Q·Kᵀ/sqrt(d_head) post-RoPE, pre-mask, pre-softmax.
+	// The causal-masked variant and post-softmax probabilities are derived
+	// client-side via deriveAttention.ts — the backend used to send all three,
+	// which tripled the wire payload for no benefit.
+	scores: number[][][];
 }
 
 export interface LayerPositionPayload {
